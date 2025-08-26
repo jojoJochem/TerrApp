@@ -545,53 +545,7 @@ def _header_cell(cell, text, fill_hex="008150"):
     cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
 
-def _set_table_width(table, total_cm: float):
-    tbl = table._tbl
-    tblPr = tbl.tblPr
-    for el in tblPr.findall(qn('w:tblW')):
-        tblPr.remove(el)
-    tblW = OxmlElement('w:tblW')
-    tblW.set(qn('w:type'), 'dxa')
-    tblW.set(qn('w:w'), str(_dxa_from_cm(total_cm)))
-    tblPr.append(tblW)
 
-
-def _set_tbl_grid(table, widths_cm):
-    tbl = table._tbl
-    for el in tbl.findall(qn('w:tblGrid')):
-        tbl.remove(el)
-    grid = OxmlElement('w:tblGrid')
-    for w in widths_cm:
-        gridCol = OxmlElement('w:gridCol')
-        gridCol.set(qn('w:w'), str(_dxa_from_cm(w)))
-        grid.append(gridCol)
-    tbl.append(grid)
-
-
-def _set_layout_fixed(table):
-    tbl = table._tbl
-    tblPr = tbl.tblPr
-    for el in tblPr.findall(qn('w:tblLayout')):
-        tblPr.remove(el)
-    tblLayout = OxmlElement('w:tblLayout')
-    tblLayout.set(qn('w:type'), 'fixed')
-    tblPr.append(tblLayout)
-
-
-def _set_col_widths_tcW(table, widths_cm):
-    """Zet per cel een expliciete tcW (type=dxa). Dit is Windows-safe en respecteert kolombreedtes."""
-    table.autofit = False
-    widths_tw = [_dxa_from_cm(w) for w in widths_cm]
-    for col_idx, tw in enumerate(widths_tw):
-        for row in table.rows:
-            cell = row.cells[col_idx]
-            tcPr = cell._tc.get_or_add_tcPr()
-            for el in tcPr.findall(qn('w:tcW')):
-                tcPr.remove(el)
-            tcW = OxmlElement('w:tcW')
-            tcW.set(qn('w:type'), 'dxa')
-            tcW.set(qn('w:w'), str(tw))
-            tcPr.append(tcW)
 
 
 def _borders_horizontal_only(table):
@@ -629,7 +583,7 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
     # sortering op monstercode
     def sort_key(s):
         try:
-            return int(''.join(c for c in s.get(MC, '') if c.isdigit()))
+            return int(''.join(c for c in s.get(MC,'') if c.isdigit()))
         except:
             return 9999
     samples = sorted(samples, key=sort_key)
@@ -655,7 +609,6 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
         _force_calibri(r, size_pt=9, italic=True)
 
     cols1 = [MC, SAM, "Boornummer\n(traject in m - mv.)", OND]
-    widths_t1 = [2.13, 4.50, 3.75, 4.87]  # cm  (som ≈ 15.25)
     t1 = doc.add_table(rows=1, cols=len(cols1))
     t1.style = "Table Grid"
     for j, name in enumerate(cols1):
@@ -675,10 +628,6 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
         for c in row:
             _cell_runs_calibri(c, size_pt=9)
 
-    _set_table_width(t1, sum(widths_t1))
-    _set_layout_fixed(t1)
-    _set_tbl_grid(t1, widths_t1)
-    _set_col_widths_tcW(t1, widths_t1)
     _borders_horizontal_only(t1)
 
     # notities
@@ -693,7 +642,6 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
         _force_calibri(r, size_pt=9, italic=True)
 
     cols2 = [MC, SAM, "Boornummer\n(traject in m - mv.)", SKF, KKA]
-    widths_t2 = [2.13, 2.75, 3.75, 3.00, 3.50]  # cm (som ≈ 15.13)
     t2 = doc.add_table(rows=1, cols=len(cols2))
     t2.style = "Table Grid"
     for j, name in enumerate(cols2):
@@ -718,10 +666,6 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
         for tok in _CLASS_TOKEN_RE.findall(skf_val.upper()):
             tokens.add("IND" if tok == "I" else tok)
 
-    _set_table_width(t2, sum(widths_t2))
-    _set_layout_fixed(t2)
-    _set_tbl_grid(t2, widths_t2)
-    _set_col_widths_tcW(t2, widths_t2)
     _borders_horizontal_only(t2)
 
     # legenda
