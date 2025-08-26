@@ -1,0 +1,40 @@
+name: Deploy to Heroku (single app)
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Heroku CLI
+        run: |
+          curl https://cli-assets.heroku.com/install.sh | sh
+          heroku --version
+
+      - name: Auth (via API key)
+        run: heroku auth:whoami || true
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+
+      - name: Push to Heroku
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          git remote add heroku https://heroku:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git
+          git push -f heroku HEAD:main
+
+      - name: Basic health check
+        env:
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          for i in {1..12}; do
+            sleep 5
+            curl -fsS "https://${HEROKU_APP_NAME}.herokuapp.com/" && exit 0 || true
+          done
+          echo "App did not become healthy in time"; exit 1

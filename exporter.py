@@ -5,6 +5,7 @@ from docx.shared import Pt, RGBColor, Cm
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 import re
+import io
 
 MC = 'Monstercode'
 SAM = 'Samenstelling'
@@ -193,11 +194,96 @@ def _extract_class_tokens(val: str) -> set:
     return tokens
 
 
-def export_to_docx(samples: List[Dict], out_path: str):
+# def export_to_docx(samples: List[Dict], out_path: str):
+#     # sorteer op monstercode (MM01..), fallback hoog
+#     def sort_key(s):
+#         try:
+#             return int(''.join(c for c in s[MC] if c.isdigit()))
+#         except:
+#             return 9999
+#     samples = sorted(samples, key=sort_key)
+
+#     doc = Document()
+
+#     # ===== Tabel 1 =====
+#     _add_table_heading(doc, "Tabel 1. Samenstelling analysemonsters.")
+#     cols1 = [MC, SAM, "Boornummer\n(traject in m - mv.)", "Onderzochte parameters"]
+#     t1 = doc.add_table(rows=1, cols=len(cols1))
+#     hdr1 = t1.rows[0].cells
+#     for j, name in enumerate(cols1):
+#         hdr1[j].text = name
+#         _set_cell_shading(hdr1[j], '008150')           # groene balk
+#         _set_cell_font(hdr1[j], bold=True, size_pt=9, color_rgb='FFFFFF')
+
+#     for s in samples:
+#         row = t1.add_row().cells
+#         row[0].text = s.get(MC, "")
+#         row[1].text = s.get(SAM, "")
+#         row[2].text = _join_lines(s.get(BN, []))
+#         row[3].text = s.get(OND, "")
+#         for c in row:
+#             _set_cell_font(c, size_pt=9)
+
+#     # [Monstercode, Samenstelling, Boornummer, Onderzochte parameters]
+#     widths_t1 = [2.13, 4.5, 3.75, 4.87]   # som ≈ 15.25 cm
+#     _apply_fixed_layout(t1)
+#     _set_table_width(t1, sum(widths_t1))
+#     _set_col_widths_strict(t1, widths_t1)
+#     _set_table_borders_horizontal_only(t1)
+
+#     _add_note(doc, "MM = mengmonster")
+#     _add_note(doc, "NEN 5740 grond:\t\tmetalen (barium, cadmium, kobalt, koper, kwik, lood, molybdeen, nikkel, zink), PAK (polycyclische \n\t\t\taromatische koolwaterstoffen), PCB (polychloorbifenylen), minerale olie, droge stof-, lutum- en \n\t\t\torganische stofgehalte.\nPFAS:\t\t\tper- en polyfluoralkylverbindingen")
+
+#     # ===== Tabel 2 =====
+#     _add_table_heading(doc, "Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond.")
+#     cols2 = [MC, SAM, "Boornummer\n(traject in m - mv.)", "Stofspecifieke kwaliteitsklassen", "Kwaliteitsklasse analysemonster"]
+#     t2 = doc.add_table(rows=1, cols=len(cols2))
+#     hdr2 = t2.rows[0].cells
+#     for j, name in enumerate(cols2):
+#         hdr2[j].text = name
+#         _set_cell_shading(hdr2[j], '008150')
+#         _set_cell_font(hdr2[j], bold=True, size_pt=9, color_rgb='FFFFFF')
+
+#     all_tokens = set()
+#     for s in samples:
+#         row = t2.add_row().cells
+#         row[0].text = s.get(MC, "")
+#         row[1].text = s.get(SAM, "")
+#         row[2].text = _join_lines(s.get(BN, []))
+#         skf_val = s.get(SKF, "")
+#         row[3].text = skf_val
+#         row[4].text = s.get(KKA, "")
+#         for c in row:
+#             _set_cell_font(c, size_pt=9)
+#         all_tokens |= _extract_class_tokens(skf_val)
+
+#     # [Monstercode, Samenstelling, Boornummer, SKF, KKA]
+#     widths_t2 = [2.13, 2.75, 3.75, 3.0, 3.5]   # som ≈ 15.13 cm
+#     _apply_fixed_layout(t2)
+#     _set_table_width(t2, sum(widths_t2))
+#     _set_col_widths_strict(t2, widths_t2)
+#     _set_table_borders_horizontal_only(t2)
+
+#     # Voorwaardelijke legenda
+#     only_ln = (len(all_tokens) > 0) and (all_tokens <= {'L/N'})
+#     if only_ln:
+#         _add_note(doc, "L/N : geen verontreinigingen aangetoond (de waarden overschrijden de kwaliteitseis voor klasse 'landbouw / natuur' niet)")
+#     else:
+#         _add_note(doc, "L/N\t: geen verontreinigingen aangetoond (de waarden overschrijden de kwaliteitseis voor klasse 'landbouw / natuur' niet)\nW\t: wonen (licht verontreinigd; de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'wonen')\nIND\t: industrie (licht verontreinigd; de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'industrie')\nMV\t: matig verontreinigd (de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'matig verontreinigd')\nSV\t: sterk verontreinigd (de aangetoonde waarden overschrijden de norm behorend bij de kwaliteitseis voor klasse 'matig verontreinigd' / interventiewaarde bodemkwaliteit (I))")
+
+#     doc.save(out_path)
+
+
+def export_to_docx(samples: List[Dict], out_path: str | None = None):
+    """
+    Bouwt het Word-document.
+    - Als out_path is opgegeven: schrijft naar bestand en returnt het pad.
+    - Als out_path None is: returnt een BytesIO met de .docx-inhoud (seek(0) gezet).
+    """
     # sorteer op monstercode (MM01..), fallback hoog
     def sort_key(s):
         try:
-            return int(''.join(c for c in s[MC] if c.isdigit()))
+            return int(''.join(c for c in s['Monstercode'] if c.isdigit()))
         except:
             return 9999
     samples = sorted(samples, key=sort_key)
@@ -206,25 +292,24 @@ def export_to_docx(samples: List[Dict], out_path: str):
 
     # ===== Tabel 1 =====
     _add_table_heading(doc, "Tabel 1. Samenstelling analysemonsters.")
-    cols1 = [MC, SAM, "Boornummer\n(traject in m - mv.)", "Onderzochte parameters"]
+    cols1 = ['Monstercode', 'Samenstelling', "Boornummer\n(traject in m - mv.)", "Onderzochte parameters"]
     t1 = doc.add_table(rows=1, cols=len(cols1))
     hdr1 = t1.rows[0].cells
     for j, name in enumerate(cols1):
         hdr1[j].text = name
-        _set_cell_shading(hdr1[j], '008150')           # groene balk
+        _set_cell_shading(hdr1[j], '008150')
         _set_cell_font(hdr1[j], bold=True, size_pt=9, color_rgb='FFFFFF')
 
     for s in samples:
         row = t1.add_row().cells
-        row[0].text = s.get(MC, "")
-        row[1].text = s.get(SAM, "")
-        row[2].text = _join_lines(s.get(BN, []))
-        row[3].text = s.get(OND, "")
+        row[0].text = s.get('Monstercode', "")
+        row[1].text = s.get('Samenstelling', "")
+        row[2].text = '\n'.join(s.get('Boornummer', []))
+        row[3].text = s.get('Onderzochte parameters', "")
         for c in row:
             _set_cell_font(c, size_pt=9)
 
-    # [Monstercode, Samenstelling, Boornummer, Onderzochte parameters]
-    widths_t1 = [2.13, 4.5, 3.75, 4.87]   # som ≈ 15.25 cm
+    widths_t1 = [2.13, 4.5, 3.75, 4.87]
     _apply_fixed_layout(t1)
     _set_table_width(t1, sum(widths_t1))
     _set_col_widths_strict(t1, widths_t1)
@@ -235,7 +320,7 @@ def export_to_docx(samples: List[Dict], out_path: str):
 
     # ===== Tabel 2 =====
     _add_table_heading(doc, "Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond.")
-    cols2 = [MC, SAM, "Boornummer\n(traject in m - mv.)", "Stofspecifieke kwaliteitsklassen", "Kwaliteitsklasse analysemonster"]
+    cols2 = ['Monstercode', 'Samenstelling', "Boornummer\n(traject in m - mv.)", "Stofspecifieke kwaliteitsklassen", "Kwaliteitsklasse analysemonster"]
     t2 = doc.add_table(rows=1, cols=len(cols2))
     hdr2 = t2.rows[0].cells
     for j, name in enumerate(cols2):
@@ -246,28 +331,33 @@ def export_to_docx(samples: List[Dict], out_path: str):
     all_tokens = set()
     for s in samples:
         row = t2.add_row().cells
-        row[0].text = s.get(MC, "")
-        row[1].text = s.get(SAM, "")
-        row[2].text = _join_lines(s.get(BN, []))
-        skf_val = s.get(SKF, "")
+        row[0].text = s.get('Monstercode', "")
+        row[1].text = s.get('Samenstelling', "")
+        row[2].text = '\n'.join(s.get('Boornummer', []))
+        skf_val = s.get('Stofspecifieke kwaliteitsklassen', "")
         row[3].text = skf_val
-        row[4].text = s.get(KKA, "")
+        row[4].text = s.get('Kwaliteitsklasse analysemonster', "")
         for c in row:
             _set_cell_font(c, size_pt=9)
         all_tokens |= _extract_class_tokens(skf_val)
 
-    # [Monstercode, Samenstelling, Boornummer, SKF, KKA]
-    widths_t2 = [2.13, 2.75, 3.75, 3.0, 3.5]   # som ≈ 15.13 cm
+    widths_t2 = [2.13, 2.75, 3.75, 3.0, 3.5]
     _apply_fixed_layout(t2)
     _set_table_width(t2, sum(widths_t2))
     _set_col_widths_strict(t2, widths_t2)
     _set_table_borders_horizontal_only(t2)
 
-    # Voorwaardelijke legenda
     only_ln = (len(all_tokens) > 0) and (all_tokens <= {'L/N'})
     if only_ln:
         _add_note(doc, "L/N : geen verontreinigingen aangetoond (de waarden overschrijden de kwaliteitseis voor klasse 'landbouw / natuur' niet)")
     else:
         _add_note(doc, "L/N\t: geen verontreinigingen aangetoond (de waarden overschrijden de kwaliteitseis voor klasse 'landbouw / natuur' niet)\nW\t: wonen (licht verontreinigd; de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'wonen')\nIND\t: industrie (licht verontreinigd; de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'industrie')\nMV\t: matig verontreinigd (de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'matig verontreinigd')\nSV\t: sterk verontreinigd (de aangetoonde waarden overschrijden de norm behorend bij de kwaliteitseis voor klasse 'matig verontreinigd' / interventiewaarde bodemkwaliteit (I))")
 
-    doc.save(out_path)
+    if out_path:
+        doc.save(out_path)
+        return out_path
+    else:
+        bio = io.BytesIO()
+        doc.save(bio)
+        bio.seek(0)
+        return bio
