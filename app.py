@@ -6,7 +6,7 @@ from exporter import export_to_docx
 from docx import Document
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
 
 
 @app.route("/", methods=["GET"])
