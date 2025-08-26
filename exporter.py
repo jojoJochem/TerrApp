@@ -461,7 +461,6 @@
 #     return bio
 
 
-# --- DROP-IN REPLACER ---
 import io
 import re
 from typing import List, Dict
@@ -480,34 +479,28 @@ KKA = 'Kwaliteitsklasse analysemonster'
 
 _CLASS_TOKEN_RE = re.compile(r'\b(L/N|W|IND|I|MV|SV)\b', re.IGNORECASE)
 
-_L_N_LEGEND = "L/N : geen verontreinigingen aangetoond (de waarden overschrijden de kwaliteitseis voor klasse 'landbouw / natuur' niet)"
-_W_LEGEND = "W : wonen (licht verontreinigd; de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'wonen')"
-_IND_LEGEND = "IND : industrie (licht verontreinigd; de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'industrie')"
-_MV_LEGEND = "MV : matig verontreinigd (de aangetoonde waarden voldoen aan de kwaliteitseis voor klasse 'matig verontreinigd')"
-_SV_LEGEND = "SV : sterk verontreinigd (de aangetoonde waarden overschrijden de norm behorend bij de kwaliteitseis voor klasse 'matig verontreinigd' / interventiewaarde bodemkwaliteit (I))"
+_L_N_LEGEND = "\nL/N\t: geen verontreinigingen aangetoond (de waarden overschrijden de kwaliteitseis voor klasse 'landbouw / natuur' niet)"
+_W_LEGEND = "W\t: wonen (licht verontreinigd; de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'wonen')"
+_IND_LEGEND = "IND\t: industrie (licht verontreinigd; de aangetoonde waarden voldoen aan de kwaliteitseis van klasse 'industrie')"
+_MV_LEGEND = "MV\t: matig verontreinigd (de aangetoonde waarden voldoen aan de kwaliteitseis voor klasse 'matig verontreinigd')"
+_SV_LEGEND = "SV\t: sterk verontreinigd (de aangetoonde waarden overschrijden de norm behorend bij de kwaliteitseis voor klasse 'matig verontreinigd' / interventiewaarde bodemkwaliteit (I))"
 
-_LEGEND_IND = "IND"
-_LEGEND_W = "W"
-_LEGEND_MV = "MV"
-_LEGEND_SV = "SV"
+_MM_LEGEND = "\nMM = mengmonster"
 
 _NEN_5740_LEGEND = (
         "NEN 5740 grond:\t\tmetalen (barium, cadmium, kobalt, koper, kwik, lood, molybdeen, nikkel, zink), PAK (polycyclische"
         "\n\t\t\taromatische koolwaterstoffen), PCB (polychloorbifenylen), minerale olie, droge stof-, lutum- en"
         "\n\t\t\torganische stofgehalte."
+        "\nPFAS:\t\t\tper- en polyfluoralkylverbindingen"
     )
 
-_PFAS_LEGEND = "PFAS:\t\t\tper- en polyfluoralkylverbindingen"
-
-_NEN_5740_LEGEND_FONT_SIZE = 8
-_PFAS_LEGEND_FONT_SIZE = 8
-
-_MM_LEGEND_FONT_SIZE = 8
 _LEGEND_FONT_SIZE = 8
+
 
 def _dxa_from_cm(cm: float) -> int:
     # 1 inch = 2.54 cm, 1 inch = 1440 twips
     return int(round(cm / 2.54 * 1440))
+
 
 def _force_calibri(run, size_pt=9, bold=False, italic=False, rgb=None):
     run.font.name = 'Calibri'
@@ -527,10 +520,12 @@ def _force_calibri(run, size_pt=9, bold=False, italic=False, rgb=None):
     if rgb is not None:
         run.font.color.rgb = rgb
 
+
 def _cell_runs_calibri(cell, size_pt=9):
     for p in cell.paragraphs:
         for r in p.runs:
             _force_calibri(r, size_pt=size_pt)
+
 
 def _header_cell(cell, text, fill_hex="008150"):
     # achtergrond
@@ -549,6 +544,7 @@ def _header_cell(cell, text, fill_hex="008150"):
         _force_calibri(p.add_run(line), size_pt=9, bold=True, rgb=RGBColor(0xFF,0xFF,0xFF))
     cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
 
+
 def _set_table_width(table, total_cm: float):
     tbl = table._tbl
     tblPr = tbl.tblPr
@@ -558,6 +554,29 @@ def _set_table_width(table, total_cm: float):
     tblW.set(qn('w:type'), 'dxa')
     tblW.set(qn('w:w'), str(_dxa_from_cm(total_cm)))
     tblPr.append(tblW)
+
+
+def _set_tbl_grid(table, widths_cm):
+    tbl = table._tbl
+    for el in tbl.findall(qn('w:tblGrid')):
+        tbl.remove(el)
+    grid = OxmlElement('w:tblGrid')
+    for w in widths_cm:
+        gridCol = OxmlElement('w:gridCol')
+        gridCol.set(qn('w:w'), str(_dxa_from_cm(w)))
+        grid.append(gridCol)
+    tbl.append(grid)
+
+
+def _set_layout_fixed(table):
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    for el in tblPr.findall(qn('w:tblLayout')):
+        tblPr.remove(el)
+    tblLayout = OxmlElement('w:tblLayout')
+    tblLayout.set(qn('w:type'), 'fixed')
+    tblPr.append(tblLayout)
+
 
 def _set_col_widths_tcW(table, widths_cm):
     """Zet per cel een expliciete tcW (type=dxa). Dit is Windows-safe en respecteert kolombreedtes."""
@@ -574,6 +593,7 @@ def _set_col_widths_tcW(table, widths_cm):
             tcW.set(qn('w:w'), str(tw))
             tcPr.append(tcW)
 
+
 def _borders_horizontal_only(table):
     """Alleen top/bottom/insideH, geen insideV/left/right (Windows-safe)."""
     tbl = table._tbl
@@ -581,42 +601,58 @@ def _borders_horizontal_only(table):
     for el in tblPr.findall(qn('w:tblBorders')):
         tblPr.remove(el)
     borders = OxmlElement('w:tblBorders')
+
     # top/bottom stevig
     def add(tag, val='single', sz='8', color='000000'):
-        el = OxmlElement(tag); el.set(qn('w:val'), val); el.set(qn('w:sz'), sz); el.set(qn('w:color'), color); borders.append(el)
-    add('w:top'); add('w:bottom')
+        el = OxmlElement(tag)
+        el.set(qn('w:val'), val)
+        el.set(qn('w:sz'), sz)
+        el.set(qn('w:color'), color)
+        borders.append(el)
+    add('w:top')
+    add('w:bottom')
     # insideH dunner
     insideH = OxmlElement('w:insideH')
-    insideH.set(qn('w:val'), 'single'); insideH.set(qn('w:sz'), '4'); insideH.set(qn('w:color'), '000000')
+    insideH.set(qn('w:val'), 'single')
+    insideH.set(qn('w:sz'), '4')
+    insideH.set(qn('w:color'), '000000')
     borders.append(insideH)
     # disable verticale & zijkanten
-    for tag in ('w:insideV','w:left','w:right'):
-        el = OxmlElement(tag); el.set(qn('w:val'), 'nil'); borders.append(el)
+    for tag in ('w:insideV', 'w:left', 'w:right'):
+        el = OxmlElement(tag)
+        el.set(qn('w:val'), 'nil')
+        borders.append(el)
     tblPr.append(borders)
 
-# ---------- exporter ----------
 
 def export_to_docx(samples: List[Dict]) -> io.BytesIO:
     # sortering op monstercode
     def sort_key(s):
-        try:    return int(''.join(c for c in s.get(MC,'') if c.isdigit()))
-        except: return 9999
+        try:
+            return int(''.join(c for c in s.get(MC, '') if c.isdigit()))
+        except:
+            return 9999
     samples = sorted(samples, key=sort_key)
 
     doc = Document()
     # style "Normal" richting Calibri 9pt
     try:
         normal = doc.styles['Normal']
-        normal.font.name = 'Calibri'; normal.font.size = Pt(9)
-        n = normal._element; rPr = n.get_or_add_rPr()
+        normal.font.name = 'Calibri'
+        normal.font.size = Pt(9)
+        n = normal._element
+        rPr = n.get_or_add_rPr()
         rFonts = rPr.find(qn('w:rFonts')) or OxmlElement('w:rFonts')
-        if rFonts.getparent() is None: rPr.append(rFonts)
-        for k in ('w:ascii','w:hAnsi','w:cs'): rFonts.set(qn(k), 'Calibri')
-    except Exception: pass
+        if rFonts.getparent() is None:
+            rPr.append(rFonts)
+        for k in ('w:ascii', 'w:hAnsi', 'w:cs'): rFonts.set(qn(k), 'Calibri')
+    except Exception:
+        pass
 
     # ===== Tabel 1 =====
     p1 = doc.add_paragraph("Tabel 1. Samenstelling analysemonsters.")
-    for r in p1.runs: _force_calibri(r, size_pt=9, italic=True)
+    for r in p1.runs:
+        _force_calibri(r, size_pt=9, italic=True)
 
     cols1 = [MC, SAM, "Boornummer\n(traject in m - mv.)", OND]
     widths_t1 = [2.13, 4.50, 3.75, 4.87]  # cm  (som ≈ 15.25)
@@ -631,7 +667,8 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
         row[1].text = s.get(SAM, "")
         row[2].text = ""
         lines = s.get(BN, []) or []
-        if not isinstance(lines, list): lines = [str(lines)]
+        if not isinstance(lines, list):
+            lines = [str(lines)]
         for i, line in enumerate(lines):
             (_p := (row[2].paragraphs[0] if i == 0 else row[2].add_paragraph())).add_run(str(line))
         row[3].text = s.get(OND, "")
@@ -639,20 +676,21 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
             _cell_runs_calibri(c, size_pt=9)
 
     _set_table_width(t1, sum(widths_t1))
+    _set_layout_fixed(t1)
+    _set_tbl_grid(t1, widths_t1)
     _set_col_widths_tcW(t1, widths_t1)
     _borders_horizontal_only(t1)
 
     # notities
-    n1 = doc.add_paragraph("MM = mengmonster")
-    [_force_calibri(r, size_pt=_MM_LEGEND_FONT_SIZE) for r in n1.runs]
+    n1 = doc.add_paragraph(_MM_LEGEND)
+    [_force_calibri(r, size_pt=_LEGEND_FONT_SIZE) for r in n1.runs]
     n2 = doc.add_paragraph(_NEN_5740_LEGEND)
-    [_force_calibri(r, size_pt=_NEN_5740_LEGEND_FONT_SIZE) for r in n2.runs]
-    n3 = doc.add_paragraph(_PFAS_LEGEND)
-    [_force_calibri(r, size_pt=_PFAS_LEGEND_FONT_SIZE) for r in n3.runs]
+    [_force_calibri(r, size_pt=_LEGEND_FONT_SIZE) for r in n2.runs]
 
     # ===== Tabel 2 =====
     p2 = doc.add_paragraph("Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond.")
-    for r in p2.runs: _force_calibri(r, size_pt=9, italic=True)
+    for r in p2.runs:
+        _force_calibri(r, size_pt=9, italic=True)
 
     cols2 = [MC, SAM, "Boornummer\n(traject in m - mv.)", SKF, KKA]
     widths_t2 = [2.13, 2.75, 3.75, 3.00, 3.50]  # cm (som ≈ 15.13)
@@ -668,17 +706,21 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
         row[1].text = s.get(SAM, "")
         row[2].text = ""
         lines = s.get(BN, []) or []
-        if not isinstance(lines, list): lines = [str(lines)]
+        if not isinstance(lines, list):
+            lines = [str(lines)]
         for i, line in enumerate(lines):
             (_p := (row[2].paragraphs[0] if i == 0 else row[2].add_paragraph())).add_run(str(line))
         skf_val = (s.get(SKF, "") or "")
         row[3].text = skf_val
         row[4].text = s.get(KKA, "") or ""
-        for c in row: _cell_runs_calibri(c, size_pt=9)
+        for c in row:
+            _cell_runs_calibri(c, size_pt=9)
         for tok in _CLASS_TOKEN_RE.findall(skf_val.upper()):
             tokens.add("IND" if tok == "I" else tok)
 
     _set_table_width(t2, sum(widths_t2))
+    _set_layout_fixed(t2)
+    _set_tbl_grid(t2, widths_t2)
     _set_col_widths_tcW(t2, widths_t2)
     _borders_horizontal_only(t2)
 

@@ -9,13 +9,13 @@
 <body>
   <div class="container">
     <h1>Excel → Word Tabel Generator</h1>
-    <p class="note">Upload één of meerdere Excel-bestanden (.xlsx / .xlsm). De app leest automatisch de juiste rijen/kolommen in het sheet “Tabel”.</p>
+    <p class="note">Upload één of meerdere Toetsing Excel-bestanden (.xlsx / .xlsm).</p>
     <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
       <input type="file" name="files" multiple accept=".xlsx,.xlsm,.xls" required>
-      <button type="submit">Genereer Wordbestand</button>
+      <button type="submit">Genereer Word Document</button>
     </form>
     <div class="sample">
-      <strong>Uitvoer</strong>: Een .docx met twee tabellen (Tabel 1. Samenstelling analysemonsters. & Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond.)
+      <strong>Uitvoer</strong>: Document met twee tabellen (Tabel 1. Samenstelling analysemonsters. & Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond.)
     </div>
     <footer>
     </footer>
