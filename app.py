@@ -2,7 +2,7 @@
 import io, os, tempfile
 from flask import Flask, render_template, request, send_file, abort
 from parser import parse_excel_to_samples
-from exporter import export_to_docx_win_safe
+from exporter import export_to_docx
 from docx import Document
 
 app = Flask(__name__)
@@ -72,17 +72,7 @@ def generate():
     if not all_samples:
         abort(400, "Geen bruikbare monsters gevonden in de uploads.")
 
-    # Laat exporter een BytesIO retourneren (geen tussentijds bestand)
-    # out_io = export_to_docx(all_samples, out_path=None)
-
-    # return send_file(
-    #     out_io,
-    #     as_attachment=True,
-    #     download_name="tabels.docx",
-    #     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    # )
-
-    out_io = export_to_docx_win_safe(all_samples)  # <— win-safe pad
+    out_io = export_to_docx(all_samples)
 
     return send_file(
         out_io,
