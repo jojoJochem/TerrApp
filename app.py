@@ -2,10 +2,11 @@
 import io, os, tempfile
 from flask import Flask, render_template, request, send_file, abort
 from parser import parse_excel_to_samples
-from exporter import export_to_docx
+from exporter import export_to_docx_win_safe
+from docx import Document
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20 MB
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 
 
 @app.route("/", methods=["GET"])
@@ -72,13 +73,41 @@ def generate():
         abort(400, "Geen bruikbare monsters gevonden in de uploads.")
 
     # Laat exporter een BytesIO retourneren (geen tussentijds bestand)
-    out_io = export_to_docx(all_samples, out_path=None)
+    # out_io = export_to_docx(all_samples, out_path=None)
+
+    # return send_file(
+    #     out_io,
+    #     as_attachment=True,
+    #     download_name="tabels.docx",
+    #     mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    # )
+
+    out_io = export_to_docx_win_safe(all_samples)  # <— win-safe pad
 
     return send_file(
         out_io,
         as_attachment=True,
         download_name="tabels.docx",
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        max_age=0,
+        conditional=False,
+    )
+
+
+@app.get("/debug/docx-min")
+def docx_min():
+    bio = io.BytesIO()
+    doc = Document()
+    doc.add_paragraph("Hello from TerrApp – minimal docx")
+    doc.save(bio)
+    bio.seek(0)
+    return send_file(
+        bio,
+        as_attachment=True,
+        download_name="test.docx",
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        max_age=0,
+        conditional=False,  # voorkom range/etag edge-cases
     )
 
 

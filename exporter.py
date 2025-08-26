@@ -361,3 +361,104 @@ def export_to_docx(samples: List[Dict], out_path: str | None = None):
         doc.save(bio)
         bio.seek(0)
         return bio
+
+
+from typing import List, Dict
+from docx import Document
+
+
+def export_to_docx_win_safe(samples: List[Dict]) -> io.BytesIO:
+    """Windows-compatibele .docx zonder low-level XML table tweaks."""
+    # sorteer op monstercode (MM01..)
+    def sort_key(s):
+        try:    return int(''.join(c for c in s.get(MC,'') if c.isdigit()))
+        except: return 9999
+    samples = sorted(samples, key=sort_key)
+
+    doc = Document()
+
+    # ===== Tabel 1 =====
+    p = doc.add_paragraph("Tabel 1. Samenstelling analysemonsters.")
+    for r in p.runs:
+        r.font.size = Pt(9); r.italic = True
+
+    cols1 = [MC, SAM, "Boornummer\n(traject in m - mv.)", OND]
+    t1 = doc.add_table(rows=1, cols=len(cols1))
+    t1.style = "Table Grid"
+    hdr1 = t1.rows[0].cells
+    for j, name in enumerate(cols1):
+        # nette multi-line header
+        hdr1[j].text = ""
+        for (k, line) in enumerate(str(name).split("\n")):
+            (hdr1[j].paragraphs[0] if k == 0 else hdr1[j].add_paragraph()).add_run(line).bold = True
+        for run in hdr1[j].paragraphs[0].runs:
+            run.font.size = Pt(9)
+
+    for s in samples:
+        row = t1.add_row().cells
+        row[0].text = s.get(MC, "")
+        row[1].text = s.get(SAM, "")
+        # multi-line cell via paragrafen ipv '\n'
+        row[2].text = ""
+        lines = s.get(BN, []) or []
+        if not isinstance(lines, list): lines = [str(lines)]
+        for idx, line in enumerate(lines):
+            (row[2].paragraphs[0] if idx == 0 else row[2].add_paragraph()).add_run(str(line))
+        row[3].text = s.get(OND, "")
+        # font-size uniform
+        for c in row:
+            for p in c.paragraphs:
+                for r in p.runs:
+                    r.font.size = Pt(9)
+
+    # ===== Tabel 2 =====
+    p = doc.add_paragraph("Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond.")
+    for r in p.runs:
+        r.font.size = Pt(9); r.italic = True
+
+    cols2 = [MC, SAM, "Boornummer\n(traject in m - mv.)", SKF, KKA]
+    t2 = doc.add_table(rows=1, cols=len(cols2))
+    t2.style = "Table Grid"
+    hdr2 = t2.rows[0].cells
+    for j, name in enumerate(cols2):
+        hdr2[j].text = ""
+        for (k, line) in enumerate(str(name).split("\n")):
+            (hdr2[j].paragraphs[0] if k == 0 else hdr2[j].add_paragraph()).add_run(line).bold = True
+        for run in hdr2[j].paragraphs[0].runs:
+            run.font.size = Pt(9)
+
+    # legenda-detectie (veilig, zonder regex-finesses)
+    tokens = set()
+    for s in samples:
+        row = t2.add_row().cells
+        row[0].text = s.get(MC, "")
+        row[1].text = s.get(SAM, "")
+        row[2].text = ""
+        lines = s.get(BN, []) or []
+        if not isinstance(lines, list): lines = [str(lines)]
+        for idx, line in enumerate(lines):
+            (row[2].paragraphs[0] if idx == 0 else row[2].add_paragraph()).add_run(str(line))
+        skf_val = s.get(SKF, "") or ""
+        row[3].text = skf_val
+        row[4].text = s.get(KKA, "") or ""
+        for c in row:
+            for p in c.paragraphs:
+                for r in p.runs:
+                    r.font.size = Pt(9)
+        for tok in ("L/N","W","IND","I","MV","SV"):
+            if tok in skf_val.upper(): tokens.add("IND" if tok=="I" else tok)
+
+    # legenda (simpel)
+    only_ln = bool(tokens) and tokens <= {"L/N"}
+    doc.add_paragraph(
+        "L/N : geen verontreinigingen aangetoond (de waarden overschrijden de kwaliteitseis voor klasse 'landbouw / natuur' niet)"
+        if only_ln else
+        "L/N: geen verontreinigingen aangetoond ...\nW: wonen ...\nIND: industrie ...\nMV: matig verontreinigd ...\nSV: sterk verontreinigd ..."
+    ).runs[0].font.size = Pt(8)
+
+    bio = io.BytesIO()
+    doc.save(bio)
+    bio.seek(0)
+    return bio
+
+
