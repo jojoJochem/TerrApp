@@ -1,0 +1,9 @@
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 1.5rem; }
+.container { max-width: 900px; margin: 0 auto; }
+h1 { margin-bottom: 0.25rem; }
+form { border: 1px solid #3333; padding: 1rem; border-radius: 12px; background: #fafafa; }
+input[type=file] { display:block; margin: 0.5rem 0 1rem; }
+button { padding: 0.6rem 1rem; border-radius: 10px; border: 1px solid #3333; background: #f2f2f2; cursor: pointer; }
+.note { color: #444; font-size: 0.9rem; margin-top: .5rem; }
+footer { margin-top: 2rem; color: #666; font-size: 0.85rem; }
+.sample { background: #fff; border: 1px dashed #9996; padding: .75rem; border-radius: 8px; margin-top: 1rem; }

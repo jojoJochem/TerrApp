@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Excel → Word Tabel Generator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <h1>Excel → Word Tabel Generator</h1>
+    <p class="note">Upload één of meerdere Excel-bestanden (.xlsx / .xlsm). De app leest automatisch de juiste rijen/kolommen in het sheet “Tabel”.</p>
+    <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
+      <input type="file" name="files" multiple accept=".xlsx,.xlsm,.xls" required>
+      <button type="submit">Genereer Wordbestand</button>
+    </form>
+    <div class="sample">
+      <strong>Uitvoer</strong>: Een .docx met twee tabellen (Tabel 1. Samenstelling analysemonsters. & Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond.)
+    </div>
+    <footer>
+    </footer>
+  </div>
+</body>
+</html>
