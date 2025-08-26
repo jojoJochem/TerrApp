@@ -1,7 +1,7 @@
 # parser.py
 import re
 import pandas as pd
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from collections import OrderedDict
 
 # Output-keys
@@ -25,11 +25,24 @@ PFAS_ROWS_KEYWORDS = ['PF', 'GenX', 'FOSA', 'FOSAA', 'diPAP', 'PFAS']
 _MM_CODE = re.compile(r'^\s*MM\d+', re.IGNORECASE)
 _INT_TOKEN = re.compile(r'\b\d+\b')
 _BOOR_RE = re.compile(r'^\s*(\d+)\s*\(([^)]+)\)\s*$')  # "01 (0,50-1,00)" -> num="01", depth="0,50-1,00"
+_PROJECT_CODE_RE = re.compile(r'T\.\s*\d{2}\.\s*\d{3,6}')
+
+
+def _find_project_code(sheet: pd.DataFrame) -> str:
+    for i in range(sheet.shape[0]):
+        for j in range(sheet.shape[1]):
+            v = sheet.iat[i, j]
+            if isinstance(v, str):
+                m = _PROJECT_CODE_RE.search(v)
+                if m:
+                    # normaliseer: spaties rond punten weghalen
+                    return re.sub(r'\s+', '', m.group(0))
+    return ""
 
 
 def _find_row(sheet: pd.DataFrame, startswith_text: str) -> int:
     for i in range(sheet.shape[0]):
-        v = str(sheet.iat[i ,0]).strip()
+        v = str(sheet.iat[i, 0]).strip()
         if v.startswith(startswith_text):
             return i
     raise ValueError(f"Anchor row not found for: {startswith_text}")
@@ -38,20 +51,11 @@ def _find_row(sheet: pd.DataFrame, startswith_text: str) -> int:
 def _list_pfas_rows(sheet: pd.DataFrame) -> List[int]:
     idxs = []
     for i in range(sheet.shape[0]):
-        v = sheet.iat[i,0]
-        if isinstance(v,str) and any(k in v for k in PFAS_ROWS_KEYWORDS):
+        v = sheet.iat[i, 0]
+        if isinstance(v, str) and any(k in v for k in PFAS_ROWS_KEYWORDS):
             if 'Kwaliteitsklasse' not in v:
                 idxs.append(i)
     return sorted(set(idxs))
-
-
-# def _get_sample_start_cols(sheet: pd.DataFrame, row_mm: int) -> List[int]:
-#     cols = []
-#     for j in range(sheet.shape[1]):
-#         v = sheet.iat[row_mm, j]
-#         if isinstance(v, str) and re.match(r'^MM\d+', v.strip()):
-#             cols.append(j)
-#     return cols
 
 
 def _get_sample_start_cols(sheet: pd.DataFrame, row_mm: int) -> List[int]:
@@ -182,7 +186,7 @@ def build_onderzochte_parameters(sheet: pd.DataFrame, sample_col: int) -> str:
     # Arseen aanwezig?
     r_as = None
     for i in range(sheet.shape[0]):
-        if sheet.iat[i ,0] == 'Arseen':
+        if sheet.iat[i, 0] == 'Arseen':
             r_as = i
             break
     if r_as is not None:
@@ -204,81 +208,7 @@ def build_onderzochte_parameters(sheet: pd.DataFrame, sample_col: int) -> str:
     return ', '.join(params)
 
 
-# def parse_excel_to_samples(path: str) -> List[Dict[str, Any]]:
-#     # Lees het sheet "Tabel" (in jouw bestanden staat dáár de info voor boornummers & klassen)
-#     sheet = pd.read_excel(path, sheet_name='Tabel', header=None, engine='openpyxl')
-
-#     row_mm = _find_row(sheet, ANCHOR_MM)
-#     row_ms = _find_row(sheet, ANCHOR_MS)
-#     row_rb = _find_row(sheet, ANCHOR_RBK)
-#     row_pf = _find_row(sheet, ANCHOR_PFAS)
-#     row_tt = _find_row(sheet, ANCHOR_TOT)
-
-#     start_cols = _get_sample_start_cols(sheet, row_mm)
-
-#     samples = []
-#     for c in start_cols:
-#         raw_code = str(sheet.iat[row_mm, c]).strip()
-
-#         # Monstercode bepalen
-#         if _MM_CODE.match(raw_code):
-#             code = raw_code
-#         else:
-#             ints = _INT_TOKEN.findall(raw_code)
-#             if len(ints) >= 1:
-#                 # Voor boorkoppen de integers als code nemen (bv. '7-8' -> '7 8', '01' -> '01')
-#                 code = " ".join(ints)
-#             else:
-#                 # geen bruikbare code → sla kolom over
-#                 continue
-
-#         samenstelling = _join_lines(sheet.iat[row_mm+1, c], sheet.iat[row_mm+2, c], sheet.iat[row_mm+3, c])
-
-#         # boornummers: rijen onder 'Monstersamenstelling'
-#         boors = []
-#         for rr in range(row_ms, row_ms+12):
-#             if rr >= sheet.shape[0]: break
-#             val = sheet.iat[rr, c]
-#             if isinstance(val, str):
-#                 s = val.strip()
-#                 if s.lower() != 'zz' and re.match(r'^\d+\s*\(.*\)$', s):
-#                     boors.append(s)
-
-#         klas_rb = _fetch_class(sheet, row_rb, c)
-#         klas_pf = _fetch_class(sheet, row_pf, c)
-#         klas_tot = _fetch_class(sheet, row_tt, c)
-
-#         if 'landbouw' in (klas_rb or '').lower() and 'landbouw' in (klas_pf or '').lower():
-#             stofspec = 'alle: L/N'
-#         else:
-#             def abbr(k: str) -> str:
-#                 if not isinstance(k, str):
-#                     return 'n/b'
-#                 kl = k.lower()
-#                 if 'landbouw' in kl:
-#                     return 'L/N'
-#                 if 'wonen' in kl:
-#                     return 'W'
-#                 if 'industrie' in kl:
-#                     return 'I'
-#                 return k
-#             stofspec = f"RbK: {abbr(klas_rb)}, PFAS: {abbr(klas_pf)}"
-
-#         params = build_onderzochte_parameters(sheet, c)
-
-#         samples.append({
-#             MC: code,
-#             SAM: samenstelling,
-#             BN: boors,
-#             OND: params,
-#             SKF: stofspec,
-#             KKA: klas_tot
-#         })
-
-#     return samples
-
-
-def parse_excel_to_samples(path: str) -> List[Dict[str, Any]]:
+def parse_excel_to_samples(path: str) -> Tuple[List[Dict[str, Any]], str]:
     """
     Leest het sheet 'Tabel' en bouwt per kolom (MM of losse boorkop) een sample-record
     voor de Word-tabellen. Boornummers worden per diepte gegroepeerd en reeksen samengevouwen.
@@ -289,6 +219,7 @@ def parse_excel_to_samples(path: str) -> List[Dict[str, Any]]:
       - output keys: MC, SAM, BN, OND, SKF, KKA
     """
     sheet = pd.read_excel(path, sheet_name='Tabel', header=None, engine='openpyxl')
+    project_code = _find_project_code(sheet)
 
     row_mm = _find_row(sheet, ANCHOR_MM)
     row_ms = _find_row(sheet, ANCHOR_MS)
@@ -363,10 +294,10 @@ def parse_excel_to_samples(path: str) -> List[Dict[str, Any]]:
         samples.append({
             MC: code,
             SAM: samenstelling,
-            BN: boors_grouped,   # gegroepeerde boorregels (meerdere regels bij meerdere dieptes)
+            BN: boors_grouped,
             OND: params,
             SKF: stofspec,
             KKA: klas_tot
         })
 
-    return samples
+    return samples, project_code

@@ -465,7 +465,7 @@ import io
 import re
 from typing import List, Dict
 from docx import Document
-from docx.shared import Pt, RGBColor, Cm
+from docx.shared import Pt, RGBColor
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.enum.table import WD_ALIGN_VERTICAL

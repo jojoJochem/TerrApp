@@ -56,6 +56,7 @@ def generate():
         abort(400, "Geen bestanden geüpload")
     files = request.files.getlist("files")
     all_samples = []
+    project_codes = []
     tmpdir = tempfile.mkdtemp()
 
     for f in files:
@@ -64,8 +65,9 @@ def generate():
         path = os.path.join(tmpdir, f.filename)
         f.save(path)
         try:
-            samples = parse_excel_to_samples(path)
+            samples, project_code = parse_excel_to_samples(path)
             all_samples.extend(samples)
+            project_codes.append(project_code)
         except Exception as e:
             print("Parse error:", e)
 
@@ -73,11 +75,12 @@ def generate():
         abort(400, "Geen bruikbare monsters gevonden in de uploads.")
 
     out_io = export_to_docx(all_samples)
+    project_code = project_codes[0]
 
     return send_file(
         out_io,
         as_attachment=True,
-        download_name="tabels.docx",
+        download_name=f"{project_code}.docx",
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         max_age=0,
         conditional=False,
