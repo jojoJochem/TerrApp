@@ -11,29 +11,38 @@ jobs:
       - name: Checkout (full history)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0           # <-- belangrijk: geen shallow clone
+          fetch-depth: 0
 
       - name: Install Heroku CLI
         run: |
           curl https://cli-assets.heroku.com/install.sh | sh
           heroku --version
 
-      - name: Auth (via API key)
-        run: heroku auth:whoami || true
+      - name: Configure Heroku auth for git (.netrc)
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          cat > ~/.netrc <<'EOF'
+          machine api.heroku.com
+            login heroku
+            password ${HEROKU_API_KEY}
+          machine git.heroku.com
+            login heroku
+            password ${HEROKU_API_KEY}
+          EOF
+          chmod 600 ~/.netrc
 
       - name: Push to Heroku
         env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}   # bv. terrapp-production
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }} # bv. terrapp-production
         run: |
-          git remote add heroku https://heroku:${HEROKU_API_KEY}@git.heroku.com/${HEROKU_APP_NAME}.git
+          git remote remove heroku || true
+          git remote add heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
           git push -f heroku HEAD:main
 
       - name: Basic health check
         env:
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_FULL_APP_NAME }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
         run: |
           for i in {1..12}; do
             sleep 5
