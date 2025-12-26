@@ -18,35 +18,34 @@ jobs:
           curl https://cli-assets.heroku.com/install.sh | sh
           heroku --version
 
-      - name: Configure Heroku auth for git (.netrc)
+      - name: Push to Heroku (HTTP Basic via GIT_ASKPASS)
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}   # bv. terrapp-production
         run: |
-          echo "machine api.heroku.com" > ~/.netrc
-          echo "  login heroku" >> ~/.netrc
-          echo "  password ${HEROKU_API_KEY}" >> ~/.netrc
-          echo "machine git.heroku.com" >> ~/.netrc
-          echo "  login heroku" >> ~/.netrc
-          echo "  password ${HEROKU_API_KEY}" >> ~/.netrc
-          chmod 600 ~/.netrc
-          # sanity: laat zien dat file bestaat, maar print geen key
-          ls -la ~/.netrc
-
-
-      - name: Push to Heroku
-        env:
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-        run: |
+          # Remote (zonder creds in URL)
           if git remote get-url heroku >/dev/null 2>&1; then
             git remote set-url heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
           else
             git remote add heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
           fi
 
-          # Zorg dat git echt non-interactive blijft
+          # Non-interactive + credentials via askpass
+          cat > /tmp/askpass.sh <<'EOF'
+          #!/usr/bin/env sh
+          case "$1" in
+            *Username*) echo "heroku" ;;
+            *Password*) echo "${HEROKU_API_KEY}" ;;
+            *) echo "" ;;
+          esac
+          EOF
+          chmod +x /tmp/askpass.sh
+
+          export GIT_ASKPASS=/tmp/askpass.sh
           export GIT_TERMINAL_PROMPT=0
 
           git push -f heroku HEAD:main
+
 
 
       - name: Basic health check
