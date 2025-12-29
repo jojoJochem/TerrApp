@@ -7,7 +7,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v4
@@ -19,25 +18,16 @@ jobs:
           curl https://cli-assets.heroku.com/install.sh | sh
           heroku --version
 
-      # Belangrijk: zorg dat Git/curl credentials heeft voor https://git.heroku.com
-      # Heroku docs: HTTPS Git endpoint = API-key based HTTP Basic auth; CLI gebruikt .netrc. :contentReference[oaicite:1]{index=1}
       - name: Configure Git auth for Heroku (netrc)
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: |
-          cat > ~/.netrc <<EOF
+          cat > ~/.netrc <<'EOF'
           machine git.heroku.com
             login _
-            password $HEROKU_API_KEY
+            password ${HEROKU_API_KEY}
           EOF
           chmod 600 ~/.netrc
-
-      # Fail hard als key ongeldig is (niet maskeren met || true)
-      - name: Auth check
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-        run: |
-          heroku auth:whoami
 
       - name: Push to Heroku
         env:
@@ -45,9 +35,7 @@ jobs:
         run: |
           git remote remove heroku 2>/dev/null || true
           git remote add heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
-
-          # Push exact de commit die de workflow triggerde
-          git push -f heroku "${GITHUB_SHA}:main"
+          git push -f heroku HEAD:main
 
       - name: Basic health check
         env:
