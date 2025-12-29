@@ -41,7 +41,7 @@ jobs:
 
       - name: Health check
         env:
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_FULL_APP_NAME }}
+          HEROKU_FULL_APP_NAME: ${{ secrets.HEROKU_FULL_APP_NAME }}
         run: |
           for i in {1..12}; do
             sleep 5
