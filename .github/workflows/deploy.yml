@@ -7,6 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v4
@@ -18,25 +19,33 @@ jobs:
           curl https://cli-assets.heroku.com/install.sh | sh
           heroku --version
 
-      - name: Configure Git auth for Heroku (netrc)
+      # ---- AUTH SETUP (MUST COME FIRST) ----
+      - name: Configure Git auth for Heroku
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: |
-          cat > ~/.netrc <<'EOF'
+          cat > ~/.netrc <<EOF
           machine git.heroku.com
             login _
             password ${HEROKU_API_KEY}
           EOF
           chmod 600 ~/.netrc
 
+      # Optional but very useful: fail early if token is invalid
+      - name: Verify Heroku auth
+        run: heroku auth:whoami
+
+      # ---- PUSH TO HEROKU ----
       - name: Push to Heroku
         env:
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}   # bv. terrapp-production
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+          GIT_TERMINAL_PROMPT: 0
         run: |
-          git remote remove heroku 2>/dev/null || true
+          git remote remove heroku || true
           git remote add heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
           git push -f heroku HEAD:main
 
+      # ---- HEALTH CHECK ----
       - name: Basic health check
         env:
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
@@ -45,4 +54,5 @@ jobs:
             sleep 5
             curl -fsS "https://${HEROKU_APP_NAME}.herokuapp.com/" && exit 0 || true
           done
-          echo "App did not become healthy in time"; exit 1
+          echo "App did not become healthy in time"
+          exit 1
