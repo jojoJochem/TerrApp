@@ -7,6 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v4
@@ -18,35 +19,35 @@ jobs:
           curl https://cli-assets.heroku.com/install.sh | sh
           heroku --version
 
-      - name: Push to Heroku (HTTP Basic via GIT_ASKPASS)
+      # Belangrijk: zorg dat Git/curl credentials heeft voor https://git.heroku.com
+      # Heroku docs: HTTPS Git endpoint = API-key based HTTP Basic auth; CLI gebruikt .netrc. :contentReference[oaicite:1]{index=1}
+      - name: Configure Git auth for Heroku (netrc)
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          cat > ~/.netrc <<EOF
+          machine git.heroku.com
+            login _
+            password $HEROKU_API_KEY
+          EOF
+          chmod 600 ~/.netrc
+
+      # Fail hard als key ongeldig is (niet maskeren met || true)
+      - name: Auth check
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          heroku auth:whoami
+
+      - name: Push to Heroku
+        env:
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}   # bv. terrapp-production
         run: |
-          # Remote (zonder creds in URL)
-          if git remote get-url heroku >/dev/null 2>&1; then
-            git remote set-url heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
-          else
-            git remote add heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
-          fi
+          git remote remove heroku 2>/dev/null || true
+          git remote add heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
 
-          # Non-interactive + credentials via askpass
-          cat > /tmp/askpass.sh <<'EOF'
-          #!/usr/bin/env sh
-          case "$1" in
-            *Username*) echo "heroku" ;;
-            *Password*) echo "${HEROKU_API_KEY}" ;;
-            *) echo "" ;;
-          esac
-          EOF
-          chmod +x /tmp/askpass.sh
-
-          export GIT_ASKPASS=/tmp/askpass.sh
-          export GIT_TERMINAL_PROMPT=0
-
-          git push -f heroku HEAD:main
-
-
+          # Push exact de commit die de workflow triggerde
+          git push -f heroku "${GITHUB_SHA}:main"
 
       - name: Basic health check
         env:
