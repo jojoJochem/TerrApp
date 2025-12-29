@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout (full history)
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -19,7 +19,6 @@ jobs:
           curl https://cli-assets.heroku.com/install.sh | sh
           heroku --version
 
-      # ---- AUTH SETUP (MUST COME FIRST) ----
       - name: Configure Git auth for Heroku
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
@@ -31,11 +30,6 @@ jobs:
           EOF
           chmod 600 ~/.netrc
 
-      # Optional but very useful: fail early if token is invalid
-      - name: Verify Heroku auth
-        run: heroku auth:whoami
-
-      # ---- PUSH TO HEROKU ----
       - name: Push to Heroku
         env:
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
@@ -45,8 +39,7 @@ jobs:
           git remote add heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
           git push -f heroku HEAD:main
 
-      # ---- HEALTH CHECK ----
-      - name: Basic health check
+      - name: Health check
         env:
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
         run: |
