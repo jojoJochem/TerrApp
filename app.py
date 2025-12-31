@@ -72,17 +72,10 @@ def docx_min():
     )
 
 def get_last_update():
-    try:
-        # haal laatste commit timestamp op
-        ts = subprocess.check_output(
-            ["git", "log", "-1", "--format=%ct"],
-            stderr=subprocess.DEVNULL
-        ).decode().strip()
-
-        return datetime.fromtimestamp(int(ts)).strftime("%d-%m-%Y %H:%M")
-    except Exception:
-        return "onbekend"
-
+    ts = os.environ.get("BUILD_TIME")
+    if ts:
+        return ts
+    return "onbekend"
 
 if __name__ == "__main__":
     app.run(debug=True)

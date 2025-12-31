@@ -39,6 +39,14 @@ jobs:
           git remote add heroku https://git.heroku.com/${HEROKU_APP_NAME}.git
           git push -f heroku HEAD:main
 
+      - name: Set BUILD_TIME on Heroku
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
+        run: |
+          BUILD_TIME=$(date '+%d-%m-%Y %H:%M')
+          heroku config:set BUILD_TIME="$BUILD_TIME" --app "$HEROKU_APP_NAME"
+
       - name: Health check
         env:
           HEROKU_FULL_APP_NAME: ${{ secrets.HEROKU_FULL_APP_NAME }}
