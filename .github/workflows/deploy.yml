@@ -44,7 +44,7 @@ jobs:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
           HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
         run: |
-          BUILD_TIME=$(date '+%d-%m-%Y %H:%M')
+          BUILD_TIME=$(TZ=Europe/Amsterdam date '+%d-%m-%Y %H:%M')
           heroku config:set BUILD_TIME="$BUILD_TIME" --app "$HEROKU_APP_NAME"
 
       - name: Health check
