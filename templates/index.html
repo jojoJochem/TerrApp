@@ -7,22 +7,179 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div class="container">
-    <h1>Excel → Word Tabel Generator</h1>
-    <p class="note">Upload één of meerdere Toetsing Excel-bestanden (.xlsx / .xlsm).</p>
-    <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data">
-      <input type="file" name="files" multiple accept=".xlsx,.xlsm,.xls" required>
-      <button type="submit">Genereer Word Document</button>
-    </form>
-    <div class="sample">
-      <strong>Uitvoer</strong>: Document met twee tabellen (Tabel 1. Samenstelling analysemonsters. & Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond.)
-    </div>
-    <footer>
-    </footer>
-  </div>
-  <footer class="container">
-    <small>Laatst bijgewerkt: {{ last_update }}</small>
-  </footer>
+  <main class="page">
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand__logo" src="{{ url_for('static', filename='terrascan.png') }}" alt="Terrascan">
+        <div class="brand__text">
+          <h1>Excel → Word Tabel Generator</h1>
+          <p>Upload één of meerdere Toetsing Excel-bestanden en genereer direct een Word-document.</p>
+        </div>
+      </div>
+    </header>
 
+    <section class="card">
+      <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data" class="form" id="uploadForm">
+        <label class="dropzone" for="fileInput" id="dropzone">
+          <input
+            id="fileInput"
+            class="dropzone__input"
+            type="file"
+            name="files"
+            multiple
+            accept=".xlsx,.xlsm,.xls"
+          />
+
+          <div class="dropzone__content">
+            <div class="dropzone__icon" aria-hidden="true">⬆</div>
+            <div class="dropzone__title">Sleep je bestanden hierheen</div>
+            <div class="dropzone__subtitle">Meerdere bestanden toegestaan</div>
+          </div>
+
+          <div class="dropzone__meta">
+            <span class="pill">of klik om te kiezen (.xlsx / .xlsm / .xls)</span>
+          </div>
+        </label>
+
+        <div class="row">
+          <div class="hint">
+            <strong>Uitvoer</strong>
+            <div class="hint__text">
+              1 Word-document (.docx) met twee tabellen:<br>
+              <span class="muted">Tabel 1. Samenstelling analysemonsters</span><br>
+              <span class="muted">Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond</span>
+            </div>
+          </div>
+
+          <button class="btn" type="submit">Genereer Word-document</button>
+        </div>
+
+        <div class="filelist" id="fileList" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <footer class="footer">
+      <small>Laatst bijgewerkt: <span class="mono">{{ last_update }}</span></small>
+    </footer>
+  </main>
+
+  <script>
+    const form = document.getElementById("uploadForm");
+    const input = document.getElementById("fileInput");
+    const list = document.getElementById("fileList");
+    const dropzone = document.getElementById("dropzone");
+
+    let filesStore = [];
+
+    function fileKey(f) {
+      // genoeg om duplicates te herkennen in de praktijk
+      return `${f.name}__${f.size}__${f.lastModified}`;
+    }
+
+    function addFiles(newFiles) {
+      const map = new Map(filesStore.map(f => [fileKey(f), f]));
+      for (const f of newFiles) map.set(fileKey(f), f); // dedupe + append
+      filesStore = Array.from(map.values());
+    }
+
+    function syncInputFiles() {
+      const dt = new DataTransfer();
+      filesStore.forEach(f => dt.items.add(f));
+      input.files = dt.files;
+    }
+
+    function renderFiles() {
+      if (filesStore.length === 0) {
+        list.innerHTML = "";
+        return;
+      }
+
+      const items = filesStore.map((f, idx) => {
+        const sizeKB = Math.round(f.size / 1024);
+        return `
+          <div class="file">
+            <div class="file__name" title="${f.name}">${f.name}</div>
+            <div class="file__size">${sizeKB.toLocaleString("nl-NL")} KB</div>
+            <button
+              type="button"
+              class="file__remove"
+              aria-label="Verwijder ${f.name}"
+              data-index="${idx}"
+              title="Verwijder"
+            >✕</button>
+          </div>
+        `;
+      });
+
+      list.innerHTML =
+        `<div class="filelist__title">Geselecteerde bestanden</div>${items.join("")}`;
+
+      document.querySelectorAll(".file__remove").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const index = Number(btn.dataset.index);
+          filesStore.splice(index, 1);
+          syncInputFiles();
+          renderFiles();
+        });
+      });
+    }
+
+    // Validatie: geen files = niet submitten
+    form.addEventListener("submit", (e) => {
+      syncInputFiles(); // extra zekerheid vlak voor submit
+      if (filesStore.length === 0 || input.files.length === 0) {
+        e.preventDefault();
+        list.innerHTML = `<div class="filelist__title" style="color:#dc2626;">Selecteer minimaal één bestand.</div>`;
+      }
+    });
+
+    // Belangrijk: reset alleen vóór het openen van de picker, niet ná change
+    // Hierdoor kun je hetzelfde bestand opnieuw kiezen zonder submit te slopen.
+    input.addEventListener("click", () => {
+      input.value = "";
+    });
+
+    // Picker: voeg toe (append)
+    input.addEventListener("change", (e) => {
+      addFiles(Array.from(e.target.files));
+      syncInputFiles();
+      renderFiles();
+    });
+
+    // Drag & drop UX
+    ["dragenter", "dragover"].forEach(evt =>
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add("is-dragover");
+      })
+    );
+
+    ["dragleave", "drop"].forEach(evt =>
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.remove("is-dragover");
+      })
+    );
+
+    // Drop: voeg toe (append)
+    dropzone.addEventListener("drop", (e) => {
+      const dt = e.dataTransfer;
+      if (!dt?.files?.length) return;
+
+      addFiles(Array.from(dt.files));
+      syncInputFiles();
+      renderFiles();
+    });
+
+    form.addEventListener("submit", () => {
+      setTimeout(() => {
+        filesStore = [];
+        input.value = "";
+        list.innerHTML = "";
+      }, 100);
+    });
+  </script>
 </body>
 </html>
