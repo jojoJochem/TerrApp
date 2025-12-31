@@ -181,6 +181,7 @@ def _group_and_format_boors(boors: List[str]) -> List[str]:
     return lines
 
 
+
 def build_onderzochte_parameters(sheet: pd.DataFrame, sample_col: int) -> str:
     params = ['NEN 5740 grond']
     # Arseen aanwezig?
@@ -251,17 +252,34 @@ def parse_excel_to_samples(path: str) -> Tuple[List[Dict[str, Any]], str]:
             sheet.iat[row_mm + 3, c]
         )
 
-        # Boornummers verzamelen uit blok onder 'Monstersamenstelling'
+        # # Boornummers verzamelen uit blok onder 'Monstersamenstelling'
+        # boors_raw = []
+        # for rr in range(row_ms, row_ms + 12):
+        #     if rr >= sheet.shape[0]:
+        #         break
+        #     val = sheet.iat[rr, c]
+        #     if isinstance(val, str):
+        #         s = val.strip()
+        #         # verwacht formaat: "<int> (<diepte>)", ignore 'zz'
+        #         if s and s.lower() != 'zz' and re.match(r'^\d+\s*\(.*\)$', s):
+        #             boors_raw.append(s)
+
         boors_raw = []
         for rr in range(row_ms, row_ms + 12):
             if rr >= sheet.shape[0]:
                 break
-            val = sheet.iat[rr, c]
-            if isinstance(val, str):
-                s = val.strip()
-                # verwacht formaat: "<int> (<diepte>)", ignore 'zz'
-                if s and s.lower() != 'zz' and re.match(r'^\d+\s*\(.*\)$', s):
-                    boors_raw.append(s)
+
+            for cc in (c, c + 4):
+                if cc >= sheet.shape[1]:
+                    continue
+
+                val = sheet.iat[rr, cc]
+                if isinstance(val, str):
+                    s = val.strip()
+                    if s and s.lower() != 'zz' and re.match(r'^\d+\s*\(.*\)$', s):
+                        boors_raw.append(s)
+
+        boors_raw = list(dict.fromkeys(boors_raw))
 
         # Groepeer boornummers per diepte en vouw reeksen samen (01 t/m 03, 05, 08 t/m 11)
         boors_grouped = _group_and_format_boors(boors_raw)
