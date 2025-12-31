@@ -4,6 +4,8 @@ from flask import Flask, render_template, request, send_file, abort
 from parser import parse_excel_to_samples
 from exporter import export_to_docx
 from docx import Document
+import subprocess
+from datetime import datetime
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
@@ -11,7 +13,9 @@ app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
 
 @app.route("/", methods=["GET"])
 def index():
-    return render_template("index.html")
+    last_update = get_last_update()
+    return render_template("index.html", last_update=last_update)
+
 
 
 @app.route("/generate", methods=["POST"])
@@ -66,6 +70,18 @@ def docx_min():
         max_age=0,
         conditional=False,  # voorkom range/etag edge-cases
     )
+
+def get_last_update():
+    try:
+        # haal laatste commit timestamp op
+        ts = subprocess.check_output(
+            ["git", "log", "-1", "--format=%ct"],
+            stderr=subprocess.DEVNULL
+        ).decode().strip()
+
+        return datetime.fromtimestamp(int(ts)).strftime("%d-%m-%Y %H:%M")
+    except Exception:
+        return "onbekend"
 
 
 if __name__ == "__main__":
