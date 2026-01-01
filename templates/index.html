@@ -72,13 +72,12 @@
     let filesStore = [];
 
     function fileKey(f) {
-      // genoeg om duplicates te herkennen in de praktijk
       return `${f.name}__${f.size}__${f.lastModified}`;
     }
 
     function addFiles(newFiles) {
       const map = new Map(filesStore.map(f => [fileKey(f), f]));
-      for (const f of newFiles) map.set(fileKey(f), f); // dedupe + append
+      for (const f of newFiles) map.set(fileKey(f), f);
       filesStore = Array.from(map.values());
     }
 
@@ -124,29 +123,24 @@
       });
     }
 
-    // Validatie: geen files = niet submitten
     form.addEventListener("submit", (e) => {
-      syncInputFiles(); // extra zekerheid vlak voor submit
+      syncInputFiles();
       if (filesStore.length === 0 || input.files.length === 0) {
         e.preventDefault();
         list.innerHTML = `<div class="filelist__title" style="color:#dc2626;">Selecteer minimaal één bestand.</div>`;
       }
     });
 
-    // Belangrijk: reset alleen vóór het openen van de picker, niet ná change
-    // Hierdoor kun je hetzelfde bestand opnieuw kiezen zonder submit te slopen.
     input.addEventListener("click", () => {
       input.value = "";
     });
 
-    // Picker: voeg toe (append)
     input.addEventListener("change", (e) => {
       addFiles(Array.from(e.target.files));
       syncInputFiles();
       renderFiles();
     });
 
-    // Drag & drop UX
     ["dragenter", "dragover"].forEach(evt =>
       dropzone.addEventListener(evt, (e) => {
         e.preventDefault();
@@ -163,7 +157,6 @@
       })
     );
 
-    // Drop: voeg toe (append)
     dropzone.addEventListener("drop", (e) => {
       const dt = e.dataTransfer;
       if (!dt?.files?.length) return;
