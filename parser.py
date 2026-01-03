@@ -35,7 +35,6 @@ def _find_project_code(sheet: pd.DataFrame) -> str:
             if isinstance(v, str):
                 m = _PROJECT_CODE_RE.search(v)
                 if m:
-                    # normaliseer: spaties rond punten weghalen
                     return re.sub(r'\s+', '', m.group(0))
     return ""
 
@@ -238,11 +237,13 @@ def parse_excel_to_samples(path: str) -> Tuple[List[Dict[str, Any]], str]:
         if _MM_CODE.match(raw_code):
             code = raw_code
         else:
-            ints = _INT_TOKEN.findall(raw_code)  # alleen gehele getallen (leading zeros behouden via zfill later)
+            # alleen gehele getallen (leading zeros behouden via zfill later)
+            ints = _INT_TOKEN.findall(raw_code)
             if len(ints) >= 1:
-                code = " ".join(ints)  # bv. "7-8" -> "7 8", "01" -> "01"
+                # bv. "7-8" -> "7 8", "01" -> "01"
+                code = " ".join(ints)
             else:
-                # Geen bruikbare code → kolom overslaan
+                # Geen bruikbare code -> kolom overslaan
                 continue
 
         # Samenstelling komt uit de 3 regels direct onder de kop
@@ -251,18 +252,6 @@ def parse_excel_to_samples(path: str) -> Tuple[List[Dict[str, Any]], str]:
             sheet.iat[row_mm + 2, c],
             sheet.iat[row_mm + 3, c]
         )
-
-        # # Boornummers verzamelen uit blok onder 'Monstersamenstelling'
-        # boors_raw = []
-        # for rr in range(row_ms, row_ms + 12):
-        #     if rr >= sheet.shape[0]:
-        #         break
-        #     val = sheet.iat[rr, c]
-        #     if isinstance(val, str):
-        #         s = val.strip()
-        #         # verwacht formaat: "<int> (<diepte>)", ignore 'zz'
-        #         if s and s.lower() != 'zz' and re.match(r'^\d+\s*\(.*\)$', s):
-        #             boors_raw.append(s)
 
         boors_raw = []
         for rr in range(row_ms, row_ms + 12):

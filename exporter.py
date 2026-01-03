@@ -185,7 +185,6 @@ def export_to_docx(samples: List[Dict]) -> io.BytesIO:
 
     doc = Document()
 
-    # style "Normal" richting Calibri 9pt
     try:
         normal = doc.styles['Normal']
         normal.font.name = 'Calibri'

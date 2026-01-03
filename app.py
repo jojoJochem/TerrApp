@@ -4,8 +4,6 @@ from flask import Flask, render_template, request, send_file, abort
 from parser import parse_excel_to_samples
 from exporter import export_to_docx
 from docx import Document
-import subprocess
-from datetime import datetime
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
