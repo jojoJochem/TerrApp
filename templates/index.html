@@ -18,6 +18,20 @@
       </div>
     </header>
 
+    {% if error_message %}
+      <div class="modal" id="errorModal" role="dialog" aria-modal="true" aria-labelledby="errorTitle" aria-describedby="errorBody">
+        <div class="modal__card modal__card--error">
+          <div class="modal__header">
+            <h2 id="errorTitle">{{ error_title or "Bad Request" }}</h2>
+          </div>
+          <p id="errorBody">{{ error_message }}</p>
+          <div class="modal__actions">
+            <button class="btn btn--ghost" type="button" id="errorOk">Ok</button>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
     <section class="card">
       <form action="{{ url_for('generate') }}" method="post" enctype="multipart/form-data" class="form" id="uploadForm">
         <label class="dropzone" for="fileInput" id="dropzone">
@@ -51,7 +65,7 @@
             </div>
           </div>
 
-          <button class="btn" type="submit">Genereer Word-document</button>
+          <button class="btn" type="submit" id="generateBtn">Genereer Word-document</button>
         </div>
 
         <div class="filelist" id="fileList" aria-live="polite"></div>
@@ -68,6 +82,7 @@
     const input = document.getElementById("fileInput");
     const list = document.getElementById("fileList");
     const dropzone = document.getElementById("dropzone");
+    const generateBtn = document.getElementById("generateBtn");
 
     let filesStore = [];
 
@@ -88,6 +103,7 @@
     }
 
     function renderFiles() {
+      updateGenerateHint();
       if (filesStore.length === 0) {
         list.innerHTML = "";
         return;
@@ -121,6 +137,16 @@
           renderFiles();
         });
       });
+    }
+    function updateGenerateHint() {
+      if (!generateBtn) return;
+      if (filesStore.length === 0) {
+        generateBtn.classList.add("has-tooltip");
+        generateBtn.setAttribute("data-tooltip", "Voeg eerst een Excel-bestand toe");
+      } else {
+        generateBtn.classList.remove("has-tooltip");
+        generateBtn.removeAttribute("data-tooltip");
+      }
     }
 
     form.addEventListener("submit", (e) => {
@@ -171,8 +197,27 @@
         filesStore = [];
         input.value = "";
         list.innerHTML = "";
+        updateGenerateHint();
       }, 100);
     });
+
+    updateGenerateHint();
+
+    const errorModal = document.getElementById("errorModal");
+    if (errorModal) {
+      const closeButtons = errorModal.querySelectorAll(".modal__close, #errorOk");
+      closeButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          errorModal.remove();
+        });
+      });
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          errorModal.remove();
+        }
+      });
+    }
   </script>
 </body>
 </html>

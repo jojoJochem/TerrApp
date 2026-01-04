@@ -19,7 +19,16 @@ def index():
 @app.route("/generate", methods=["POST"])
 def generate():
     if "files" not in request.files:
-        abort(400, "Geen bestanden geüpload")
+        last_update = get_last_update()
+        return (
+            render_template(
+                "index.html",
+                last_update=last_update,
+                error_title="Bad Request",
+                error_message="Geen bestanden geüpload.",
+            ),
+            400,
+        )
     files = request.files.getlist("files")
     all_samples = []
     project_codes = []
@@ -38,7 +47,16 @@ def generate():
             print("Parse error:", e)
 
     if not all_samples:
-        abort(400, "Geen bruikbare monsters gevonden in de uploads.")
+        last_update = get_last_update()
+        return (
+            render_template(
+                "index.html",
+                last_update=last_update,
+                error_title="Bad Request",
+                error_message="Geen bruikbare monsters gevonden in de uploads.",
+            ),
+            400,
+        )
 
     out_io = export_to_docx(all_samples)
     project_code = project_codes[0]
