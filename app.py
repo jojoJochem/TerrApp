@@ -1,19 +1,22 @@
-# app.py
-import io, os, tempfile
-from flask import Flask, render_template, request, send_file, abort
-from parser import parse_excel_to_samples
-from exporter import export_to_docx
+import io
+import os
+import shutil
+import tempfile
+
 from docx import Document
+from flask import Flask, render_template, request, send_file
+
+from parser import parse_excel_file
+from exporter import export_to_docx
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024
 
 
 @app.route("/", methods=["GET"])
 def index():
     last_update = get_last_update()
     return render_template("index.html", last_update=last_update)
-
 
 
 @app.route("/generate", methods=["POST"])
@@ -29,46 +32,69 @@ def generate():
             ),
             400,
         )
+
     files = request.files.getlist("files")
-    all_samples = []
+
+    ground_samples = []
+    groundwater_samples = []
     project_codes = []
+    parse_errors = []
+
     tmpdir = tempfile.mkdtemp()
 
-    for f in files:
-        if not f.filename.lower().endswith((".xlsx", ".xlsm", ".xls")):
-            continue
-        path = os.path.join(tmpdir, f.filename)
-        f.save(path)
-        try:
-            samples, project_code = parse_excel_to_samples(path)
-            all_samples.extend(samples)
-            project_codes.append(project_code)
-        except Exception as e:
-            print("Parse error:", e)
+    try:
+        for f in files:
+            if not f.filename.lower().endswith((".xlsx", ".xlsm", ".xls")):
+                continue
 
-    if not all_samples:
-        last_update = get_last_update()
-        return (
-            render_template(
-                "index.html",
-                last_update=last_update,
-                error_title="Bad Request",
-                error_message="Geen bruikbare monsters gevonden in de uploads.",
-            ),
-            400,
+            safe_name = os.path.basename(f.filename)
+            path = os.path.join(tmpdir, safe_name)
+            f.save(path)
+
+            try:
+                g_samples, gw_samples, project_code = parse_excel_file(path)
+
+                ground_samples.extend(g_samples)
+                groundwater_samples.extend(gw_samples)
+
+                if project_code:
+                    project_codes.append(project_code)
+
+            except Exception as e:
+                msg = f"{safe_name}: {e}"
+                parse_errors.append(msg)
+                print("Parse error:", msg)
+
+        if not ground_samples and not groundwater_samples:
+            last_update = get_last_update()
+            return (
+                render_template(
+                    "index.html",
+                    last_update=last_update,
+                    error_title="Bad Request",
+                    error_message="Geen bruikbare grond- of grondwatertabellen gevonden in de uploads.",
+                ),
+                400,
+            )
+
+        out_io = export_to_docx(
+            ground_samples=ground_samples,
+            groundwater_samples=groundwater_samples,
         )
 
-    out_io = export_to_docx(all_samples)
-    project_code = project_codes[0]
+        project_code = project_codes[0] if project_codes else "export"
 
-    return send_file(
-        out_io,
-        as_attachment=True,
-        download_name=f"{project_code}.docx",
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        max_age=0,
-        conditional=False,
-    )
+        return send_file(
+            out_io,
+            as_attachment=True,
+            download_name=f"{project_code}.docx",
+            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            max_age=0,
+            conditional=False,
+        )
+
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @app.get("/debug/docx-min")
@@ -84,14 +110,16 @@ def docx_min():
         download_name="test.docx",
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         max_age=0,
-        conditional=False,  # voorkom range/etag edge-cases
+        conditional=False,
     )
+
 
 def get_last_update():
     ts = os.environ.get("BUILD_TIME")
     if ts:
         return ts
     return "onbekend"
+
 
 if __name__ == "__main__":
     app.run(debug=True)
