@@ -79,7 +79,7 @@ def _as_text(v: Any) -> str:
     return str(v).strip()
 
 
-def _clean_decimal_text(v: Any) -> str:
+def _clean_decimal_text(v: Any, decimals: Optional[int] = None) -> str:
     s = _as_text(v)
 
     if not s or s.lower() in {"nan", "--", "zz"}:
@@ -87,8 +87,12 @@ def _clean_decimal_text(v: Any) -> str:
 
     try:
         f = float(s.replace(",", "."))
+        if decimals is not None:
+            return f"{f:.{decimals}f}".replace(".", ",")
+
         if abs(f - round(f)) < 1e-9:
             return str(int(round(f)))
+
         out = f"{f:.2f}".rstrip("0").rstrip(".")
         return out.replace(".", ",")
     except Exception:
@@ -519,7 +523,7 @@ def parse_groundwater_samples_from_sheet(sheet: List[List[Any]]) -> List[Dict[st
             continue
 
         filterstelling = _as_text(_get_cell(sheet, row_filter, c))
-        grondwaterstand = _clean_decimal_text(_get_cell(sheet, row_stand, c))
+        grondwaterstand = _clean_decimal_text(_get_cell(sheet, row_stand, c), decimals=2)
         ph = _clean_decimal_text(_get_cell(sheet, row_ph, c))
         egv = _clean_egv_text(_get_cell(sheet, row_egv, c))
         troebelheid = _clean_decimal_text(_get_cell(sheet, row_tr, c))
