@@ -1,13 +1,11 @@
-# tests/test_exporter_docx.py
 import os
-import tempfile
 import zipfile
 from io import BytesIO
-from typing import Union
 
 from docx import Document as DocxDocument
 
 from exporter import export_to_docx
+from parser import parse_excel_file
 
 
 def _get_document_xml(docx_bytes: bytes) -> str:
@@ -16,19 +14,9 @@ def _get_document_xml(docx_bytes: bytes) -> str:
 
 
 def _to_docx_bytes(ret) -> bytes:
-    """
-    Normalizeer export_to_docx return naar raw .docx bytes.
-    Ondersteunt:
-      - bytes
-      - io.BytesIO
-      - python-docx Document
-      - str path naar bestand
-    """
-    # 1) bytes
     if isinstance(ret, (bytes, bytearray)):
         return bytes(ret)
 
-    # 2) BytesIO / file-like met getvalue()
     if hasattr(ret, "getvalue"):
         try:
             b = ret.getvalue()
@@ -37,14 +25,12 @@ def _to_docx_bytes(ret) -> bytes:
         except Exception:
             pass
 
-    # 3) python-docx Document (heeft .save())
     if hasattr(ret, "save"):
         bio = BytesIO()
         ret.save(bio)
         bio.seek(0)
         return bio.read()
 
-    # 4) pad als string
     if isinstance(ret, str) and os.path.exists(ret):
         with open(ret, "rb") as f:
             return f.read()
@@ -55,7 +41,21 @@ def _to_docx_bytes(ret) -> bytes:
     )
 
 
-def test_exporter_generates_valid_docx_with_two_tables():
+def _all_doc_text(doc) -> str:
+    parts = []
+
+    for p in doc.paragraphs:
+        parts.append(p.text)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                parts.append(cell.text)
+
+    return "\n".join(parts)
+
+
+def test_exporter_generates_valid_docx_with_two_ground_tables():
     samples = [
         {
             "Monstercode": "MM01",
@@ -67,32 +67,137 @@ def test_exporter_generates_valid_docx_with_two_tables():
         }
     ]
 
-    ret = export_to_docx(samples)
+    ret = export_to_docx(ground_samples=samples, groundwater_samples=[])
     docx_bytes = _to_docx_bytes(ret)
 
-    # 1) Word kan openen
     doc = DocxDocument(BytesIO(docx_bytes))
     assert len(doc.tables) == 2
 
-    # 2) Check header teksten
+    text = _all_doc_text(doc)
+    assert "Tabel 1. Samenstelling analysemonsters." in text
+    assert "Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond." in text
+    assert "Tabel 3. Veldmetingen grondwater." not in text
+
     t1 = doc.tables[0]
     assert t1.rows[0].cells[0].text.strip().startswith("Monstercode")
     assert "Samenstelling" in t1.rows[0].cells[1].text
 
-    # 3) XML checks: horizontale borders only
     xml = _get_document_xml(docx_bytes)
     assert "w:tblBorders" in xml
     assert "w:insideH" in xml
-    assert 'w:insideV w:val="nil"' in xml or 'w:insideV w:val=\'nil\'' in xml
-    assert 'w:left w:val="nil"' in xml or 'w:left w:val=\'nil\'' in xml
-    assert 'w:right w:val="nil"' in xml or 'w:right w:val=\'nil\'' in xml
-
-    # 4) Kolombreedtes aanwezig (tblGrid + tcW)
+    assert 'w:insideV w:val="nil"' in xml or "w:insideV w:val='nil'" in xml
+    assert 'w:left w:val="nil"' in xml or "w:left w:val='nil'" in xml
+    assert 'w:right w:val="nil"' in xml or "w:right w:val='nil'" in xml
     assert "w:tblGrid" in xml
     assert "w:tcW" in xml
-
-    # 5) Header shading groen
     assert 'w:fill="008150"' in xml or "w:fill='008150'" in xml
-
-    # 6) Calibri mapping aanwezig
     assert "Calibri" in xml
+
+
+def test_exporter_generates_groundwater_table_only():
+    groundwater_samples = [
+        {
+            "Peilbuis": "D02",
+            "Filterstelling": "2,50-3,50",
+            "Grondwaterstand": "1,70",
+            "pH": "7,6",
+            "EGV": "1.400",
+            "Troebelheid": "8,7",
+        },
+        {
+            "Peilbuis": "D06",
+            "Filterstelling": "2,50-3,50",
+            "Grondwaterstand": "1,40",
+            "pH": "7,7",
+            "EGV": "1.100",
+            "Troebelheid": "74",
+        },
+    ]
+
+    ret = export_to_docx(ground_samples=[], groundwater_samples=groundwater_samples)
+    docx_bytes = _to_docx_bytes(ret)
+
+    doc = DocxDocument(BytesIO(docx_bytes))
+
+    assert len(doc.tables) == 1
+
+    text = _all_doc_text(doc)
+    assert "Tabel 1. Veldmetingen grondwater." in text
+    assert "Peilbuis" in text
+    assert "Grondwater-stand" in text
+    assert "1,70" in text
+    assert "1,40" in text
+    assert "1.400" in text
+    assert "1.100" in text
+
+
+def test_exporter_generates_three_tables_when_ground_and_groundwater_are_present():
+    ground_samples = [
+        {
+            "Monstercode": "A02",
+            "Samenstelling": "Zand",
+            "Boornummer": ["A02 (0,00-0,50)"],
+            "Onderzochte parameters": "NEN 5740 grond, PFAS",
+            "Stofspecifieke kwaliteitsklassen": "PFOS: SV, Overig: W",
+            "Kwaliteitsklasse analysemonster": "sterk verontreinigd",
+        }
+    ]
+
+    groundwater_samples = [
+        {
+            "Peilbuis": "D02",
+            "Filterstelling": "2,50-3,50",
+            "Grondwaterstand": "1,70",
+            "pH": "7,6",
+            "EGV": "1.400",
+            "Troebelheid": "8,7",
+        }
+    ]
+
+    ret = export_to_docx(
+        ground_samples=ground_samples,
+        groundwater_samples=groundwater_samples,
+    )
+    docx_bytes = _to_docx_bytes(ret)
+
+    doc = DocxDocument(BytesIO(docx_bytes))
+
+    assert len(doc.tables) == 3
+
+    text = _all_doc_text(doc)
+    assert "Tabel 1. Samenstelling analysemonsters." in text
+    assert "Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond." in text
+    assert "Tabel 3. Veldmetingen grondwater." in text
+
+
+def test_exporter_real_files_combined_generate_expected_tables(real_excel_files):
+    ground_samples = []
+    groundwater_samples = []
+
+    for path in real_excel_files:
+        g_samples, gw_samples, _project_code = parse_excel_file(str(path))
+        ground_samples.extend(g_samples)
+        groundwater_samples.extend(gw_samples)
+
+    ret = export_to_docx(
+        ground_samples=ground_samples,
+        groundwater_samples=groundwater_samples,
+    )
+    docx_bytes = _to_docx_bytes(ret)
+
+    doc = DocxDocument(BytesIO(docx_bytes))
+
+    assert len(doc.tables) == 3
+
+    text = _all_doc_text(doc)
+
+    assert "Tabel 1. Samenstelling analysemonsters." in text
+    assert "Tabel 2. Samenvatting toetsing milieuhygiënische kwaliteit grond." in text
+    assert "Tabel 3. Veldmetingen grondwater." in text
+
+    assert "MMA01" in text
+    assert "A02" in text
+    assert "D04" in text
+    assert "D02" in text
+    assert "1,70" in text
+    assert "1,40" in text
